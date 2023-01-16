@@ -57,6 +57,50 @@ func (b *BPlusTree) makeEmptyInternalNode() *node {
 	}
 }
 
+func (b *BPlusTree) Find(targetKey string) (interface{}, bool) {
+	b.resetCount()
+	leafNode := b.findLeafNode(key(targetKey))
+	et, ok := leafNode.findRecord(key(targetKey))
+	b.incrCount()
+	if !ok {
+		return nil, false
+	}
+
+	if value, ok := et.(*entry); ok {
+		return value.value, true
+	}
+	return nil, false
+}
+
+func (b *BPlusTree) FindRange(start, end string) []interface{} {
+	b.resetCount()
+	result := make([]interface{}, 0)
+	startKey := key(start)
+	endKey := key(end)
+	if startKey.compare(endKey) == 1 {
+		return result
+	}
+	leafNode := b.findLeafNode(key(start))
+	currentNode := leafNode
+	for currentNode != nil {
+		b.incrCount()
+		for i, ky := range currentNode.keys {
+			if ky.compare(startKey) >= 0 && ky.compare(endKey) <= 0 {
+				et, ok := currentNode.pointers[i].(*entry)
+				if !ok {
+					panic("should be *entry")
+				}
+				result = append(result, et.value)
+			}
+			if ky.compare(endKey) == 1 {
+				return result
+			}
+		}
+		currentNode = currentNode.lastOrNextNode
+	}
+	return result
+}
+
 func (b *BPlusTree) findFirstLeafNode() *node {
 	currentNode := b.root
 	for currentNode != nil {
@@ -221,6 +265,10 @@ func (b *BPlusTree) Insert(ky string, value interface{}) {
 		value: value,
 	}
 	b.insert(key(ky), pointer)
+}
+
+func (b *BPlusTree) Delete(ky string) (interface{}, bool) {
+	return b.delete(key(ky))
 }
 
 func (b *BPlusTree) insert(targetKey key, et *entry) {
